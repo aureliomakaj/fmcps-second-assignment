@@ -1,6 +1,6 @@
 import pynusmv
 import sys
-from pynusmv.dd import BDD
+from pynusmv.dd import BDD, State
 from pynusmv.fsm import BddFsm
 from pynusmv.prop import Spec
 from pynusmv_lower_interface.nusmv.parser import parser 
@@ -64,7 +64,6 @@ def spec_to_bdd(model: BddFsm, spec: Spec) -> BDD:
     satisfy `spec`
     """
     bddspec = pynusmv.mc.eval_simple_expression(model, str(spec))
-    print("AAA: ", str(spec))
     return bddspec
     
 def is_boolean_formula(spec: Spec):
@@ -134,13 +133,19 @@ def check_react_spec(spec: Spec):
     `spec`, that is, whether all executions of the model satisfies `spec`
     or not. 
     """
-    if parse_react(spec) == None:
+    (f_formula, g_formula) = parse_react(spec)
+    if f_formula == None:
         return None
+    fsm = get_model_bddFsm()
+    f_bdd = spec_to_bdd(fsm, f_formula)
+    g_bdd = spec_to_bdd(fsm, g_formula)
+    states = fsm.pick_all_states(g_bdd)
+    for s in states:
+        print(s.get_str_values())
     return pynusmv.mc.check_explain_ltl_spec(spec)
-
-if len(sys.argv) != 2:
-    print("Usage:", sys.argv[0], "filename.smv")
-    sys.exit(1)
+    """if parse_react(spec) == None:
+        return None
+    return pynusmv.mc.check_explain_ltl_spec(spec)"""
 
 def get_model_bddFsm() -> BddFsm :
     """
@@ -148,25 +153,29 @@ def get_model_bddFsm() -> BddFsm :
     """
     return pynusmv.glob.prop_database().master.bddFsm
 
-pynusmv.init.init_nusmv()
-filename = sys.argv[1]
-pynusmv.glob.load_from_file(filename)
-pynusmv.glob.compute_model()
-type_ltl = pynusmv.prop.propTypes['LTL']
-for prop in pynusmv.glob.prop_database():
-    spec = prop.expr
-    print(spec)
-    if prop.type != type_ltl:
-        print("property is not LTLSPEC, skipping")
-        continue
-    spec_to_bdd(get_model_bddFsm(), spec)
-    res = check_react_spec(spec)
-    if res == None:
-        print('Property is not a GR(1) formula, skipping')
-    if res[0] == True:
-        print("Property is respected")
-    elif res[0] == False:
-        print("Property is not respected")
-        print("Counterexample:", res[1])
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage:", sys.argv[0], "filename.smv")
+        sys.exit(1)
 
-pynusmv.init.deinit_nusmv()
+    pynusmv.init.init_nusmv()
+    filename = sys.argv[1]
+    pynusmv.glob.load_from_file(filename)
+    pynusmv.glob.compute_model()
+    type_ltl = pynusmv.prop.propTypes['LTL']
+    for prop in pynusmv.glob.prop_database():
+        spec = prop.expr
+        print(spec)
+        if prop.type != type_ltl:
+            print("property is not LTLSPEC, skipping")
+            continue
+        res = check_react_spec(spec)
+        if res == None:
+            print('Property is not a GR(1) formula, skipping')
+        if res[0] == True:
+            print("Property is respected")
+        elif res[0] == False:
+            print("Property is not respected")
+            print("Counterexample:", res[1])
+
+    pynusmv.init.deinit_nusmv()
