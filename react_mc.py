@@ -1,5 +1,8 @@
 import pynusmv
 import sys
+from pynusmv.dd import BDD
+from pynusmv.fsm import BddFsm
+from pynusmv.prop import Spec
 from pynusmv_lower_interface.nusmv.parser import parser 
 from collections import deque
 
@@ -54,16 +57,17 @@ booleanOp = {
     parser.IFF
 }
 
-def spec_to_bdd(model, spec):
+def spec_to_bdd(model: BddFsm, spec: Spec) -> BDD:
     """
     Given a formula `spec` with no temporal operators, returns a BDD equivalent to
     the formula, that is, a BDD that contains all the states of `model` that
     satisfy `spec`
     """
     bddspec = pynusmv.mc.eval_simple_expression(model, str(spec))
+    print("AAA: ", str(spec))
     return bddspec
     
-def is_boolean_formula(spec):
+def is_boolean_formula(spec: Spec):
     """
     Given a formula `spec`, checks if the formula is a boolean combination of base
     formulas with no temporal operators. 
@@ -76,7 +80,7 @@ def is_boolean_formula(spec):
         return is_boolean_formula(spec.car) and is_boolean_formula(spec.cdr)
     return False
     
-def check_GF_formula(spec):
+def check_GF_formula(spec: Spec):
     """
     Given a formula `spec` checks if the formula is of the form GF f, where f is a 
     boolean combination of base formulas with no temporal operators.
@@ -93,7 +97,7 @@ def check_GF_formula(spec):
     else:
         return None
 
-def parse_react(spec):
+def parse_react(spec: Spec):
     """
     Visit the syntactic tree of the formula `spec` to check if it is a reactive formula,
     that is wether the formula is of the form
@@ -124,7 +128,7 @@ def parse_react(spec):
         return None
     return (f_formula, g_formula)
 
-def check_react_spec(spec):
+def check_react_spec(spec: Spec):
     """
     Return whether the loaded SMV model satisfies or not the GR(1) formula
     `spec`, that is, whether all executions of the model satisfies `spec`
@@ -138,6 +142,12 @@ if len(sys.argv) != 2:
     print("Usage:", sys.argv[0], "filename.smv")
     sys.exit(1)
 
+def get_model_bddFsm() -> BddFsm :
+    """
+    Get the BDD-encoded finite-state machine representing the SMV model
+    """
+    return pynusmv.glob.prop_database().master.bddFsm
+
 pynusmv.init.init_nusmv()
 filename = sys.argv[1]
 pynusmv.glob.load_from_file(filename)
@@ -149,6 +159,7 @@ for prop in pynusmv.glob.prop_database():
     if prop.type != type_ltl:
         print("property is not LTLSPEC, skipping")
         continue
+    spec_to_bdd(get_model_bddFsm(), spec)
     res = check_react_spec(spec)
     if res == None:
         print('Property is not a GR(1) formula, skipping')
