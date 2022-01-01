@@ -19,11 +19,11 @@ MODULE main
             TRUE                            : x;
         esac;
         
-LTLSPEC
-    G F press -> G F mode = on
+--LTLSPEC
+  --  G F press -> G F mode = on
     
-LTLSPEC
-    G F (press | x >= 10) -> G F mode = off
+--LTLSPEC
+  --  G F (press | x >= 10) -> G F mode = off
 
 LTLSPEC
     G F mode = off -> G F mode = on

@@ -134,18 +134,51 @@ def check_react_spec(spec: Spec):
     or not. 
     """
     (f_formula, g_formula) = parse_react(spec)
+    print(f_formula, g_formula)
     if f_formula == None:
         return None
     fsm = get_model_bddFsm()
-    f_bdd = spec_to_bdd(fsm, f_formula)
-    g_bdd = spec_to_bdd(fsm, g_formula)
-    states = fsm.pick_all_states(g_bdd)
-    for s in states:
-        print(s.get_str_values())
-    return pynusmv.mc.check_explain_ltl_spec(spec)
+    """f_bdd = spec_to_bdd(fsm, f_formula)
+    g_bdd = spec_to_bdd(fsm, g_formula)"""
+    reach = compute_recheability(fsm)
+    g_liveness = check_liveness(fsm, reach, g_formula)
+    exit()
+    f_liveness = check_liveness(fsm, reach, f_formula)
+    print("F: ", f_liveness.is_true())
+    print("G: ", g_liveness.is_true())
+    res = f_liveness.imply(g_liveness)
+    return (res.is_true(), pynusmv.mc.check_explain_ltl_spec(spec))
     """if parse_react(spec) == None:
         return None
     return pynusmv.mc.check_explain_ltl_spec(spec)"""
+
+def compute_recheability(fsm: BddFsm) -> BDD:
+    reach = BDD.false()
+    new = fsm.init
+    while not new.is_false():
+        reach = reach + new
+        new = fsm.post(new) - reach
+    return reach
+
+def check_liveness(fsm: BddFsm, reach: BDD, spec: Spec) -> BDD:
+    bdd_spec = spec_to_bdd(fsm, spec)
+    recur : BDD = reach & bdd_spec
+    for s in fsm.pick_all_states(recur):
+        print(s.get_str_values())
+
+    while not recur.is_false():
+        pre_reach = BDD.false()
+        new = fsm.pre(recur)
+        while not new.is_false():
+            pre_reach = pre_reach + new
+            print("----")
+            for s in fsm.pick_all_states(new):
+                print(s.get_str_values())
+            if recur.entailed(pre_reach):
+                return BDD.true()
+            new = fsm.pre(new) - pre_reach
+        recur = recur & pre_reach
+    return BDD.false()
 
 def get_model_bddFsm() -> BddFsm :
     """
@@ -172,10 +205,13 @@ if __name__ == "__main__":
         res = check_react_spec(spec)
         if res == None:
             print('Property is not a GR(1) formula, skipping')
-        if res[0] == True:
+
+        print("Mio res: ", res[0])
+        print("Altro res: ", res[1][0])
+        """if res[0] == True:
             print("Property is respected")
         elif res[0] == False:
             print("Property is not respected")
-            print("Counterexample:", res[1])
+            print("Counterexample:", res[1])"""
 
     pynusmv.init.deinit_nusmv()
