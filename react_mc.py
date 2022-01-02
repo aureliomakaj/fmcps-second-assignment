@@ -141,44 +141,51 @@ def check_react_spec(spec: Spec):
     """f_bdd = spec_to_bdd(fsm, f_formula)
     g_bdd = spec_to_bdd(fsm, g_formula)"""
     reach = compute_recheability(fsm)
-    g_liveness = check_liveness(fsm, reach, g_formula)
-    exit()
+    """print("reach")
+    for s in fsm.pick_all_states(reach):
+        print(s.get_str_values())
+    print("---")"""
     f_liveness = check_liveness(fsm, reach, f_formula)
+    tmp = pynusmv.mc.check_explain_ltl_spec(f_formula)
     print("F: ", f_liveness.is_true())
+    print("F corretto: ", tmp[0])
+    print(tmp[1])
+    exit()
+    g_liveness = check_liveness(fsm, reach, g_formula)
     print("G: ", g_liveness.is_true())
     res = f_liveness.imply(g_liveness)
     return (res.is_true(), pynusmv.mc.check_explain_ltl_spec(spec))
-    """if parse_react(spec) == None:
+    if parse_react(spec) == None:
         return None
-    return pynusmv.mc.check_explain_ltl_spec(spec)"""
+    return pynusmv.mc.check_explain_ltl_spec(spec)
 
 def compute_recheability(fsm: BddFsm) -> BDD:
-    reach = BDD.false()
+    reach = fsm.init
     new = fsm.init
-    while not new.is_false():
-        reach = reach + new
+    while new.isnot_false():
         new = fsm.post(new) - reach
+        reach = reach + new
     return reach
 
 def check_liveness(fsm: BddFsm, reach: BDD, spec: Spec) -> BDD:
     bdd_spec = spec_to_bdd(fsm, spec)
-    recur : BDD = reach & bdd_spec
+    recur = reach & (~bdd_spec)
     for s in fsm.pick_all_states(recur):
         print(s.get_str_values())
-
-    while not recur.is_false():
+    print("---")
+    while recur.isnot_false():
         pre_reach = BDD.false()
         new = fsm.pre(recur)
-        while not new.is_false():
+        while new.isnot_false():
             pre_reach = pre_reach + new
-            print("----")
-            for s in fsm.pick_all_states(new):
+            for s in fsm.pick_all_states(pre_reach):
                 print(s.get_str_values())
+            print("---")
             if recur.entailed(pre_reach):
-                return BDD.true()
+                return BDD.false()
             new = fsm.pre(new) - pre_reach
         recur = recur & pre_reach
-    return BDD.false()
+    return BDD.true()
 
 def get_model_bddFsm() -> BddFsm :
     """
