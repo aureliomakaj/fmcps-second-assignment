@@ -24,6 +24,6 @@ MODULE main
     
 --LTLSPEC
   --  G F (press | x >= 10) -> G F mode = off
-
+ 
 LTLSPEC
     G F mode = off -> G F mode = on

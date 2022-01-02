@@ -170,20 +170,18 @@ def compute_recheability(fsm: BddFsm) -> BDD:
 def check_liveness(fsm: BddFsm, reach: BDD, spec: Spec) -> BDD:
     bdd_spec = spec_to_bdd(fsm, spec)
     recur = reach & (~bdd_spec)
-    for s in fsm.pick_all_states(recur):
-        print(s.get_str_values())
-    print("---")
     while recur.isnot_false():
         pre_reach = BDD.false()
         new = fsm.pre(recur)
         while new.isnot_false():
             pre_reach = pre_reach + new
-            for s in fsm.pick_all_states(pre_reach):
+            for s in fsm.pick_all_states(new):
                 print(s.get_str_values())
             print("---")
             if recur.entailed(pre_reach):
                 return BDD.false()
             new = fsm.pre(new) - pre_reach
+        print("aaa -----")
         recur = recur & pre_reach
     return BDD.true()
 
