@@ -138,22 +138,16 @@ def check_react_spec(spec: Spec):
     if f_formula == None:
         return None
     fsm = get_model_bddFsm()
-    """f_bdd = spec_to_bdd(fsm, f_formula)
-    g_bdd = spec_to_bdd(fsm, g_formula)"""
     reach = compute_recheability(fsm)
-    """print("reach")
-    for s in fsm.pick_all_states(reach):
-        print(s.get_str_values())
-    print("---")"""
     f_liveness = check_liveness(fsm, reach, f_formula)
-    tmp = pynusmv.mc.check_explain_ltl_spec(pynusmv.prop.g(pynusmv.prop.f(f_formula)))
-    print("F: ", f_liveness.is_true())
-    print("F corretto: ", tmp[0])
-    print(tmp[1])
-    exit()
-    g_liveness = check_liveness(fsm, reach, g_formula)
-    print("G: ", g_liveness.is_true())
-    res = f_liveness.imply(g_liveness)
+    g_persitent = check_persistently(fsm, reach, ~g_formula)
+    print("F liveness: ", f_liveness.is_true())
+    print("G persistent: ", g_persitent.is_true())
+    print("G persitent correct: ", pynusmv.mc.check_explain_ltl_spec(pynusmv.prop.f(pynusmv.prop.g(~g_formula))))
+    res = ~(f_liveness & g_persitent)
+    #print("MIo ris: ", res.is_true())
+    #print("F corretto: ", tmp[0])
+    #print(tmp[1])
     return (res.is_true(), pynusmv.mc.check_explain_ltl_spec(spec))
     if parse_react(spec) == None:
         return None
@@ -168,22 +162,46 @@ def compute_recheability(fsm: BddFsm) -> BDD:
     return reach
 
 def check_liveness(fsm: BddFsm, reach: BDD, spec: Spec) -> BDD:
-    print(spec)
+    """
+        Check the formula of type G F spec, that is repeatedly spec
+    """
+    #print(spec)
     bdd_spec = spec_to_bdd(fsm, spec)
-    recur = reach & (~bdd_spec)
+    recur = reach & bdd_spec
     while recur.isnot_false():
+        """print("recur")
+        for s in fsm.pick_all_states(recur):
+            print(s.get_str_values())"""
         pre_reach = BDD.false()
         new = fsm.pre(recur)
         while new.isnot_false():
             pre_reach = pre_reach + new
-            print("---")
+            """print("---")
             for s in fsm.pick_all_states(pre_reach):
-                print(s.get_str_values())
+                print(s.get_str_values())"""
             if recur.entailed(pre_reach):
-                return BDD.false()
+                return BDD.true()
             new = fsm.pre(new) - pre_reach
         recur = recur & pre_reach
-    return BDD.true()
+    return BDD.false()
+
+def check_persistently(fsm: BddFsm, reach: BDD, spec: Spec):
+    """
+        Check the formula of type F G spec, that is persitently spec
+    """
+    bdd_spec = spec_to_bdd(fsm, spec)
+    #If the property is not reachable, it cannot be persistent
+    if not reach.intersected(bdd_spec):
+        return BDD.false()
+    recur = reach & bdd_spec
+    print("Persitent")
+    print("recur")
+    new = fsm.pre(recur)
+    reach = new
+    
+    for s in fsm.pick_all_states(pre):
+        print(s.get_str_values())
+    return BDD.true() if recur.entailed(pre) else BDD.false() 
 
 def get_model_bddFsm() -> BddFsm :
     """
@@ -213,6 +231,7 @@ if __name__ == "__main__":
 
         print("Mio res: ", res[0])
         print("Altro res: ", res[1][0])
+        print("Counterexample:", res[1])
         """if res[0] == True:
             print("Property is respected")
         elif res[0] == False:
