@@ -13,4 +13,10 @@ TRANS
   esac
 
 LTLSPEC
-  G F y = 15 -> G F y = 14 
+  G F y = 7 -> G F y = 15
+
+LTLSPEC
+  G F y = 7 -> G F y = 2
+
+LTLSPEC
+  G F y = 15 -> G F y = 2

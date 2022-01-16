@@ -3,6 +3,7 @@ import sys
 from pynusmv.dd import BDD, State
 from pynusmv.fsm import BddFsm
 from pynusmv.prop import Spec
+from pynusmv_lower_interface.nusmv.fsm import bdd
 from pynusmv_lower_interface.nusmv.parser import parser 
 from collections import deque
 
@@ -134,24 +135,13 @@ def check_react_spec(spec: Spec):
     or not. 
     """
     (f_formula, g_formula) = parse_react(spec)
-    print(f_formula, g_formula)
     if f_formula == None:
         return None
     fsm = get_model_bddFsm()
     reach = compute_recheability(fsm)
-    f_liveness = check_liveness(fsm, reach, f_formula)
-    g_persitent = check_persistently(fsm, reach, ~g_formula)
-    print("F liveness: ", f_liveness.is_true())
-    print("G persistent: ", g_persitent.is_true())
-    print("G persitent correct: ", pynusmv.mc.check_explain_ltl_spec(pynusmv.prop.f(pynusmv.prop.g(~g_formula))))
-    res = ~(f_liveness & g_persitent)
-    #print("MIo ris: ", res.is_true())
-    #print("F corretto: ", tmp[0])
-    #print(tmp[1])
-    return (res.is_true(), pynusmv.mc.check_explain_ltl_spec(spec))
-    if parse_react(spec) == None:
-        return None
-    return pynusmv.mc.check_explain_ltl_spec(spec)
+    f_liveness = repeatability_check(fsm, reach, f_formula)
+    g_liveness = persistently_check(fsm, reach, ~g_formula)
+    return ((f_liveness & g_liveness).is_true() == False, pynusmv.mc.check_explain_ltl_spec(spec))
 
 def compute_recheability(fsm: BddFsm) -> BDD:
     reach = fsm.init
@@ -161,47 +151,35 @@ def compute_recheability(fsm: BddFsm) -> BDD:
         reach = reach + new
     return reach
 
-def check_liveness(fsm: BddFsm, reach: BDD, spec: Spec) -> BDD:
+def repeatability_check(fsm: BddFsm, reach: BDD, spec: Spec) -> BDD:
     """
         Check the formula of type G F spec, that is repeatedly spec
     """
-    #print(spec)
     bdd_spec = spec_to_bdd(fsm, spec)
+    
+    #If it is not empty, then appears at least one
     recur = reach & bdd_spec
-    while recur.isnot_false():
-        """print("recur")
-        for s in fsm.pick_all_states(recur):
-            print(s.get_str_values())"""
+    while not recur.is_false():
         pre_reach = BDD.false()
         new = fsm.pre(recur)
-        while new.isnot_false():
+        while not new.is_false():
             pre_reach = pre_reach + new
-            """print("---")
-            for s in fsm.pick_all_states(pre_reach):
-                print(s.get_str_values())"""
             if recur.entailed(pre_reach):
                 return BDD.true()
-            new = fsm.pre(new) - pre_reach
+            new = (fsm.pre(new)) - pre_reach
         recur = recur & pre_reach
     return BDD.false()
 
-def check_persistently(fsm: BddFsm, reach: BDD, spec: Spec):
+def persistently_check(fsm: BddFsm, reach: BDD, spec: Spec):
     """
-        Check the formula of type F G spec, that is persitently spec
+        Check the formula of type F G spec, that is persistently spec
     """
     bdd_spec = spec_to_bdd(fsm, spec)
-    #If the property is not reachable, it cannot be persistent
-    if not reach.intersected(bdd_spec):
-        return BDD.false()
     recur = reach & bdd_spec
-    print("Persitent")
-    print("recur")
-    new = fsm.pre(recur)
-    reach = new
-    
-    for s in fsm.pick_all_states(pre):
-        print(s.get_str_values())
-    return BDD.true() if recur.entailed(pre) else BDD.false() 
+    #Once in recur, always in recur
+    if recur.entailed(fsm.pre(recur)):
+        return BDD.true()
+    return BDD.false()
 
 def get_model_bddFsm() -> BddFsm :
     """
@@ -226,6 +204,7 @@ if __name__ == "__main__":
             print("property is not LTLSPEC, skipping")
             continue
         res = check_react_spec(spec)
+        
         if res == None:
             print('Property is not a GR(1) formula, skipping')
 
