@@ -1,3 +1,4 @@
+from code import interact
 import pynusmv
 import sys
 from pynusmv.dd import BDD, State
@@ -140,8 +141,9 @@ def check_react_spec(spec: Spec):
     fsm = get_model_bddFsm()
     reach = compute_recheability(fsm)
     f_liveness = repeatability_check(fsm, reach, f_formula)
-    g_liveness = persistently_check(fsm, reach, ~g_formula)
-    return ((f_liveness & g_liveness).is_true() == False, pynusmv.mc.check_explain_ltl_spec(spec))
+    g_persistent = persistently_check(fsm, reach, ~g_formula)
+    res = f_liveness & g_persistent
+    return (True if res.is_false() else False, [])
 
 def compute_recheability(fsm: BddFsm) -> BDD:
     reach = fsm.init
@@ -151,12 +153,12 @@ def compute_recheability(fsm: BddFsm) -> BDD:
         reach = reach + new
     return reach
 
+
 def repeatability_check(fsm: BddFsm, reach: BDD, spec: Spec) -> BDD:
     """
         Check the formula of type G F spec, that is repeatedly spec
     """
     bdd_spec = spec_to_bdd(fsm, spec)
-    
     #If it is not empty, then appears at least one
     recur = reach & bdd_spec
     while not recur.is_false():
@@ -176,11 +178,15 @@ def persistently_check(fsm: BddFsm, reach: BDD, spec: Spec):
     """
     bdd_spec = spec_to_bdd(fsm, spec)
     recur = reach & bdd_spec
-    #Once in recur, always in recur
-    if recur.entailed(fsm.pre(recur)):
+    pre = fsm.pre(recur)
+    """
+        If recur is a subset of pre, then the property is persistent.
+        If it is not, this means that there is a state that goes out recur. 
+    """
+    if recur.entailed(pre):
         return BDD.true()
     return BDD.false()
-
+    
 def get_model_bddFsm() -> BddFsm :
     """
     Get the BDD-encoded finite-state machine representing the SMV model
@@ -207,14 +213,10 @@ if __name__ == "__main__":
         
         if res == None:
             print('Property is not a GR(1) formula, skipping')
-
-        print("Mio res: ", res[0])
-        print("Altro res: ", res[1][0])
-        print("Counterexample:", res[1])
-        """if res[0] == True:
+        if res[0] == True:
             print("Property is respected")
         elif res[0] == False:
             print("Property is not respected")
-            print("Counterexample:", res[1])"""
+            print("Counterexample:", res[1])
 
     pynusmv.init.deinit_nusmv()
